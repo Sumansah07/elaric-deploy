@@ -14,6 +14,7 @@
     "deploy": "npm run build && wrangler pages deploy",
     "prebuild": "node scripts/verify-build.js",
     "build": "node --max-old-space-size=8192 node_modules/@remix-run/dev/dist/cli.js vite:build",
+    "build:vercel": "node scripts/vercel-build.js",
     "dev": "node pre-start.cjs  && remix vite:dev",
     "test": "vitest --run",
     "test:watch": "vitest",
