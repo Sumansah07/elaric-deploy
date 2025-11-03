@@ -1,9 +1,10 @@
 {
-  "buildCommand": "node scripts/vercel-build.js",
+  "buildCommand": "node debug-build.js",
   "installCommand": "npm install --production=false",
   "framework": "remix",
   "env": {
-    "NODE_OPTIONS": "--max-old-space-size=8192"
+    "NODE_OPTIONS": "--max-old-space-size=8192",
+    "VERCEL": "1"
   },
   "build": {
     "env": {

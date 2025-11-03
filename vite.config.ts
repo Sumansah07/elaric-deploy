@@ -53,7 +53,14 @@ export default defineConfig((config) => {
       sourcemap: false,
       minify: 'esbuild',
       rollupOptions: {
-        external: ['electron', 'electron-log', 'electron-store', 'electron-updater'],
+        external: (id) => {
+          // External all electron-related modules
+          if (id.includes('electron') || id.endsWith('package.json')) {
+            console.log('🚫 Externalizing:', id);
+            return true;
+          }
+          return false;
+        },
         output: {
           manualChunks: (id) => {
             // Skip electron files completely
@@ -132,16 +139,14 @@ function electronExcludePlugin() {
     name: 'electron-exclude',
     resolveId(id: string) {
       // Completely exclude electron-related imports
-      if (id.includes('electron') || id.includes('package.json')) {
-        return { id: 'virtual:electron-stub', external: true };
+      if (id.includes('electron') || id.endsWith('package.json')) {
+        console.log('🚫 Excluding electron/package.json import:', id);
+        return false; // Don't resolve this module
       }
       return null;
     },
-    load(id: string) {
-      if (id === 'virtual:electron-stub') {
-        return 'export default {};';
-      }
-      return null;
+    buildStart() {
+      console.log('🔧 Electron exclude plugin active');
     },
   };
 }
