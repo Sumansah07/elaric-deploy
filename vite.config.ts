@@ -22,10 +22,12 @@ console.log('- process.env.VERCEL:', process.env.VERCEL ? '✅ SET' : '❌ MISSI
 
 export default defineConfig((config) => {
   // Check if we're running in Vercel environment
-  const isVercel = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  const isVercel = process.env.VERCEL === '1';
+  const isProduction = config.mode === 'production';
   
   console.log('🔧 Vercel Environment Check:');
   console.log('- isVercel:', isVercel);
+  console.log('- isProduction:', isProduction);
   console.log('- config.mode:', config.mode);
   console.log('- process.env.NODE_ENV:', process.env.NODE_ENV);
 
@@ -51,12 +53,12 @@ export default defineConfig((config) => {
         transformMixedEsModules: true,
       },
       sourcemap: false,
-      minify: process.env.VERCEL ? false : 'esbuild',
-      chunkSizeWarningLimit: 1000,
+      minify: isVercel ? 'esbuild' : 'esbuild',
+      chunkSizeWarningLimit: 2000,
       rollupOptions: {
         external: ['electron', 'electron-log', 'electron-store', 'electron-updater'],
         output: {
-          manualChunks: process.env.VERCEL ? undefined : (id) => {
+          manualChunks: isVercel ? undefined : (id) => {
             // Skip electron files completely
             if (id.includes('electron')) {
               return undefined;
@@ -95,8 +97,8 @@ export default defineConfig((config) => {
       }),
       UnoCSS(),
       tsconfigPaths(),
-      chrome129IssuePlugin(),
-      config.mode === 'production' && optimizeCssModules({ apply: 'build' }),
+      !isVercel && chrome129IssuePlugin(),
+      config.mode === 'production' && !isVercel && optimizeCssModules({ apply: 'build' }),
     ].filter(Boolean),
     envPrefix: [
       'VITE_',
