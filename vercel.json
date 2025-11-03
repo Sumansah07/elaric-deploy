@@ -1,5 +1,5 @@
 {
-  "buildCommand": "node debug-build.js",
+  "buildCommand": "node debug-build.cjs",
   "installCommand": "npm install --production=false",
   "framework": "remix",
   "env": {
