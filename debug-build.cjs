@@ -24,13 +24,9 @@ if (fs.existsSync(packageJsonPath)) {
   console.log('- Package.json name:', pkg.name);
 }
 
-// Temporarily modify package.json to remove type: "module"
-console.log('🔧 Temporarily modifying package.json...');
+// Keep package.json as-is since removing type: "module" breaks ESM-only dependencies
+console.log('📦 Keeping package.json unchanged to support ESM dependencies');
 const originalPkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-const modifiedPkg = { ...originalPkg };
-delete modifiedPkg.type;
-fs.writeFileSync(packageJsonPath, JSON.stringify(modifiedPkg, null, 2));
-console.log('- Removed type: "module" from package.json');
 
 console.log('🚀 Starting build...');
 
@@ -68,9 +64,7 @@ buildProcess.stderr.on('data', (data) => {
 });
 
 buildProcess.on('close', (code) => {
-  // Restore original package.json
-  console.log('🔄 Restoring original package.json...');
-  fs.writeFileSync(packageJsonPath, JSON.stringify(originalPkg, null, 2));
+  // No need to restore package.json since we didn't modify it
   
   console.log('📊 Build Summary:');
   console.log('- Exit code:', code);
@@ -94,9 +88,6 @@ buildProcess.on('close', (code) => {
 });
 
 buildProcess.on('error', (error) => {
-  // Restore original package.json on error
-  console.log('🔄 Restoring original package.json after error...');
-  fs.writeFileSync(packageJsonPath, JSON.stringify(originalPkg, null, 2));
   console.error('❌ Build process error:', error);
   process.exit(1);
 });

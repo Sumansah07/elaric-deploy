@@ -83,7 +83,6 @@ export default defineConfig((config) => {
     plugins: [
       // Only use the Cloudflare dev proxy when not in Vercel and not in test mode
       config.mode !== 'test' && !isVercel && remixCloudflareDevProxy(),
-      electronExcludePlugin(),
       remixVitePlugin({
         future: {
           v3_fetcherPersist: true,
@@ -98,7 +97,7 @@ export default defineConfig((config) => {
       tsconfigPaths(),
       chrome129IssuePlugin(),
       config.mode === 'production' && optimizeCssModules({ apply: 'build' }),
-    ],
+    ].filter(Boolean),
     envPrefix: [
       'VITE_',
       'CLERK_',
@@ -127,23 +126,6 @@ export default defineConfig((config) => {
     },
   };
 });
-
-function electronExcludePlugin() {
-  return {
-    name: 'electron-exclude',
-    resolveId(id: string) {
-      // Completely exclude electron-related imports
-      if (id.includes('electron') || id.endsWith('package.json')) {
-        console.log('🚫 Excluding electron/package.json import:', id);
-        return false; // Don't resolve this module
-      }
-      return null;
-    },
-    buildStart() {
-      console.log('🔧 Electron exclude plugin active');
-    },
-  };
-}
 
 function chrome129IssuePlugin() {
   return {
