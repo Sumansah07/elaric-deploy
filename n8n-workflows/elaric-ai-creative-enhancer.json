@@ -1,0 +1,191 @@
+{
+  "name": "Elaric AI - Creative Design Enhancer",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-mockup",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "generate-mockup"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "geminiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"models/text-embedding-004\",\n  \"content\": {\n    \"parts\": [\n      {\n        \"text\": \"{{ $json.body.prompt }}\"\n      }\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "generate-embedding",
+      "name": "Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "Convert user prompt to embedding vector"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://mpgzwkcxdkydapemswix.supabase.co/rest/v1/rpc/search_similar_screens",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wZ3p3a2N4ZGt5ZGFwZW1zd2l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTQ2Mzg0NSwiZXhwIjoyMDc3MDM5ODQ1fQ.GKovIzHuyYuUaCmKfecxDGZ0VEuPxlVDg-NHQUX1uKk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wZ3p3a2N4ZGt5ZGFwZW1zd2l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTQ2Mzg0NSwiZXhwIjoyMDc3MDM5ODQ1fQ.GKovIzHuyYuUaCmKfecxDGZ0VEuPxlVDg-NHQUX1uKk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query_embedding\": {{ $json.embedding.values }},\n  \"match_limit\": 3\n}",
+        "options": {}
+      },
+      "id": "search-similar",
+      "name": "Search Similar Screens",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "Find 3 similar designs for inspiration"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract user prompt\nconst userPrompt = $input.first().json.body.prompt;\n\n// Get similar screens (only 3 for light inspiration)\nconst matches = $input.all().slice(1, 4);\n\nconsole.log('🎨 Found', matches.length, 'design patterns for inspiration');\n\n// Extract only key design patterns (not full details)\nlet designPatterns = [];\nlet categories = new Set();\n\nmatches.forEach((match) => {\n  const data = match.json;\n  if (data.category) categories.add(data.category);\n  \n  // Extract only high-level patterns from analysis\n  const analysis = data.analysis || '';\n  if (analysis.includes('layout')) designPatterns.push('modern layout patterns');\n  if (analysis.includes('navigation')) designPatterns.push('intuitive navigation');\n  if (analysis.includes('clean')) designPatterns.push('clean design aesthetic');\n  if (analysis.includes('card')) designPatterns.push('card-based components');\n});\n\n// Build minimal context (inspiration only, not instructions)\nconst inspirationContext = matches.length > 0 ? `\nDesign Inspiration:\n- Reference style: ${Array.from(categories).join(', ')}\n- Key patterns observed: ${[...new Set(designPatterns)].slice(0, 3).join(', ')}\n- Approach: Use these as creative inspiration, not strict templates\n` : '';\n\n// Prepare lightweight response\nreturn {\n  json: {\n    originalPrompt: userPrompt,\n    inspirationContext: inspirationContext,\n    referenceCount: matches.length,\n    references: matches.map(m => ({\n      screen: m.json.screen_number,\n      category: m.json.category,\n      similarity: (m.json.similarity * 100).toFixed(1) + '%'\n    })),\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "build-context",
+      "name": "Build Inspiration Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "Extract design patterns as light inspiration"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "notesInFlow": true,
+      "notes": "Return inspiration context to app"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "Search Similar Screens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Similar Screens": {
+      "main": [
+        [
+          {
+            "node": "Build Inspiration Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Inspiration Context": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "AI Enhancement",
+      "id": "enhancement-tag"
+    },
+    {
+      "name": "Background",
+      "id": "background-tag"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-26T12:00:00.000Z",
+  "versionId": "2"
+}

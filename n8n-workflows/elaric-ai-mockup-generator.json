@@ -1,0 +1,254 @@
+{
+  "name": "Elaric AI - Context-Aware Mockup Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-mockup",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "generate-mockup"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "geminiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"models/text-embedding-004\",\n  \"content\": {\n    \"parts\": [\n      {\n        \"text\": \"{{ $json.body.prompt }}\"\n      }\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "generate-embedding",
+      "name": "Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "Convert user prompt to embedding vector using Gemini API"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT \n  id,\n  screen_number,\n  analysis,\n  category,\n  status,\n  timestamp,\n  1 - (embedding <=> CAST('{{ $json.embedding.values }}' AS vector)) as similarity\nFROM \n  search_similar_screens(\n    CAST('[{{ $json.embedding.values.join(\",\") }}]' AS vector),\n    5\n  )\nORDER BY similarity DESC\nLIMIT 5;",
+        "options": {}
+      },
+      "id": "search-supabase",
+      "name": "Search Similar Screens",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "Vector search in Supabase to find similar design references",
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract user prompt from webhook\nconst userPrompt = $input.first().json.body.prompt;\n\n// Get similar screens from Supabase\nconst matches = $input.all().filter(item => item.json.screen_number);\n\nconsole.log('🔍 Found', matches.length, 'similar design references');\n\n// Build context from similar screens\nconst referenceContext = matches.map((match, index) => {\n  const data = match.json;\n  const similarity = (data.similarity * 100).toFixed(1);\n  \n  return `\n📱 REFERENCE ${index + 1} [${similarity}% match]\nScreen: ${data.screen_number}\nCategory: ${data.category}\nStatus: ${data.status}\nAnalysis: ${data.analysis}\n---`;\n}).join('\\n');\n\n// Build enhanced prompt with context\nconst enhancedPrompt = `You are Elaric AI, an expert UI/UX designer and mockup generator.\n\n🎯 GENERATION RULES:\n1. Generate COMPLETE, PRODUCTION-READY HTML/CSS mockup\n2. Single HTML file with embedded CSS (no external files)\n3. Mobile-responsive design (use flexbox/grid)\n4. Modern UI patterns and best practices\n5. Maximum 3-5 pages/screens\n6. Include interactive elements (buttons, forms, navigation)\n7. Use semantic HTML5 elements\n8. Add smooth transitions and hover effects\n9. Include proper spacing, typography, and color scheme\n10. NO BACKEND CODE - Pure HTML/CSS only\n\n📚 DESIGN REFERENCES FROM DATABASE:\nI found ${matches.length} similar designs in our database. Use these as inspiration:\n\n${referenceContext}\n\n💡 USER REQUEST:\n${userPrompt}\n\n🎨 TASK:\nGenerate a complete HTML/CSS mockup that:\n- Matches the style and quality of the reference designs\n- Incorporates design patterns from similar screens\n- Follows modern UI/UX best practices\n- Is fully responsive and production-ready\n- Includes all necessary elements for the requested screen(s)\n\nProvide ONLY the HTML code with embedded CSS. Start with <!DOCTYPE html> and include everything in a single file.`;\n\n// Prepare output\nreturn {\n  json: {\n    enhancedPrompt: enhancedPrompt,\n    originalPrompt: userPrompt,\n    referenceScreens: matches.map(m => ({\n      screen_number: m.json.screen_number,\n      category: m.json.category,\n      similarity: m.json.similarity\n    })),\n    contextLength: referenceContext.length,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "build-context",
+      "name": "Build Enhanced Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "Combine user prompt with reference designs to create context-aware prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "geminiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"{{ $json.enhancedPrompt }}\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.7,\n    \"topK\": 40,\n    \"topP\": 0.95,\n    \"maxOutputTokens\": 8192\n  }\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "generate-mockup",
+      "name": "Generate Mockup with Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 300],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "Generate context-aware mockup using Gemini 2.0 Flash"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract generated HTML from Gemini response\nconst geminiResponse = $input.first().json;\nconst contextData = $('Build Enhanced Context').first().json;\n\nlet generatedHtml = '';\n\ntry {\n  // Parse Gemini response\n  if (geminiResponse.candidates && geminiResponse.candidates[0]) {\n    const content = geminiResponse.candidates[0].content;\n    generatedHtml = content.parts[0].text;\n    \n    // Clean up markdown code blocks if present\n    generatedHtml = generatedHtml.replace(/```html\\n?/g, '');\n    generatedHtml = generatedHtml.replace(/```\\n?$/g, '');\n    generatedHtml = generatedHtml.trim();\n    \n    console.log('✅ Successfully generated', generatedHtml.length, 'characters of HTML');\n  } else {\n    throw new Error('Invalid response from Gemini API');\n  }\n} catch (error) {\n  console.error('❌ Error parsing Gemini response:', error);\n  generatedHtml = '<html><body><h1>Error generating mockup</h1><p>' + error.message + '</p></body></html>';\n}\n\n// Prepare final response\nconst response = {\n  success: true,\n  html: generatedHtml,\n  metadata: {\n    originalPrompt: contextData.originalPrompt,\n    referenceScreens: contextData.referenceScreens,\n    generatedAt: new Date().toISOString(),\n    htmlSize: generatedHtml.length,\n    referencesUsed: contextData.referenceScreens.length\n  },\n  references: contextData.referenceScreens.map(ref => ({\n    screen: ref.screen_number,\n    category: ref.category,\n    similarity: `${(ref.similarity * 100).toFixed(1)}%`\n  })),\n  stats: {\n    contextLength: contextData.contextLength,\n    generationTime: new Date() - new Date(contextData.timestamp),\n    model: 'gemini-2.0-flash-exp'\n  }\n};\n\nconsole.log('📊 Generation Stats:', response.stats);\nconsole.log('📚 References Used:', response.references);\n\nreturn { json: response };"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "Format final response with HTML and metadata"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 300],
+      "notesInFlow": true,
+      "notes": "Return generated mockup to Remix app"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "Search Similar Screens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Similar Screens": {
+      "main": [
+        [
+          {
+            "node": "Build Enhanced Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Enhanced Context": {
+      "main": [
+        [
+          {
+            "node": "Generate Mockup with Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Mockup with Gemini": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "AI",
+      "id": "ai-tag"
+    },
+    {
+      "name": "Mockup",
+      "id": "mockup-tag"
+    },
+    {
+      "name": "Context-Aware",
+      "id": "context-tag"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-26T12:00:00.000Z",
+  "versionId": "1"
+}

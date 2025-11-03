@@ -1,0 +1,19 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "bolt"
+compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2025-03-28"
+pages_build_output_dir = "./build/client"
+send_metrics = false
+
+# Environment variables for development
+[vars]
+NODE_ENV = "development"
+
+# For production, use wrangler secret put commands:
+# Server-side keys (required for rootAuthLoader and API routes)
+# wrangler secret put CLERK_PUBLISHABLE_KEY
+# wrangler secret put CLERK_SECRET_KEY
+# wrangler secret put CLERK_WEBHOOK_SECRET
+
+# Client-side keys (automatically available via build process)
+# wrangler secret put VITE_CLERK_PUBLISHABLE_KEY

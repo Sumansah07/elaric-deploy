@@ -1,0 +1,8 @@
+{
+  "buildCommand": "pnpm run build",
+  "framework": "remix",
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "env": {
+    "NODE_OPTIONS": "--max-old-space-size=8192"
+  }
+}
