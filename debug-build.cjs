@@ -40,13 +40,15 @@ const { spawn } = require('child_process');
 const buildProcess = spawn('node', [
   '--max-old-space-size=8192',
   'node_modules/@remix-run/dev/dist/cli.js',
-  'vite:build'
+  'vite:build',
+  '--mode=production'
 ], {
   stdio: 'pipe',
   env: {
     ...process.env,
     VERCEL: '1',
-    NODE_ENV: 'production'
+    NODE_ENV: 'production',
+    VITE_LOG_LEVEL: 'info'
   }
 });
 
@@ -76,10 +78,14 @@ buildProcess.on('close', (code) => {
   console.log('- Error length:', buildError.length);
   
   if (code !== 0) {
-    console.log('❌ Build failed. Last 1000 chars of error:');
-    console.log(buildError.slice(-1000));
-    console.log('❌ Last 1000 chars of output:');
-    console.log(buildOutput.slice(-1000));
+    console.log('❌ Build failed. Full error output:');
+    console.log('='.repeat(80));
+    console.log(buildError);
+    console.log('='.repeat(80));
+    console.log('❌ Full build output:');
+    console.log('='.repeat(80));
+    console.log(buildOutput);
+    console.log('='.repeat(80));
   } else {
     console.log('✅ Build succeeded!');
   }

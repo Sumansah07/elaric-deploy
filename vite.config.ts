@@ -46,23 +46,17 @@ export default defineConfig((config) => {
       },
     },
     build: {
-      target: 'esnext',
+      target: 'es2020',
       commonjsOptions: {
         transformMixedEsModules: true,
       },
       sourcemap: false,
-      minify: 'esbuild',
+      minify: process.env.VERCEL ? false : 'esbuild',
+      chunkSizeWarningLimit: 1000,
       rollupOptions: {
-        external: (id) => {
-          // External all electron-related modules
-          if (id.includes('electron') || id.endsWith('package.json')) {
-            console.log('🚫 Externalizing:', id);
-            return true;
-          }
-          return false;
-        },
+        external: ['electron', 'electron-log', 'electron-store', 'electron-updater'],
         output: {
-          manualChunks: (id) => {
+          manualChunks: process.env.VERCEL ? undefined : (id) => {
             // Skip electron files completely
             if (id.includes('electron')) {
               return undefined;
