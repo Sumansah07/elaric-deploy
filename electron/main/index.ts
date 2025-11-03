@@ -3,7 +3,11 @@ import { createRequestHandler } from '@remix-run/node';
 import electron, { app, BrowserWindow, ipcMain, protocol, session } from 'electron';
 import log from 'electron-log';
 import path from 'node:path';
-import * as pkg from '../../package.json';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf-8'));
 import { setupAutoUpdater } from './utils/auto-update';
 import { isDev, DEFAULT_PORT } from './utils/constants';
 import { initViteServer, viteServer } from './utils/vite-server';

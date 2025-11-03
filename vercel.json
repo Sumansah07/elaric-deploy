@@ -4,5 +4,15 @@
   "framework": "remix",
   "env": {
     "NODE_OPTIONS": "--max-old-space-size=8192"
+  },
+  "functions": {
+    "app/entry.server.tsx": {
+      "excludeFiles": "electron/**"
+    }
+  },
+  "build": {
+    "env": {
+      "VERCEL": "1"
+    }
   }
 }

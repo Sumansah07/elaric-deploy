@@ -31,6 +31,7 @@ export default defineConfig((config) => {
       sourcemap: false,
       minify: 'esbuild',
       rollupOptions: {
+        external: process.env.VERCEL ? ['electron'] : [],
         output: {
           manualChunks: (id) => {
             if (id.includes('node_modules')) {
@@ -61,6 +62,7 @@ export default defineConfig((config) => {
           v3_throwAbortReason: true,
           v3_lazyRouteDiscovery: true,
         },
+        ignoredRouteFiles: process.env.VERCEL ? ['**/electron/**'] : [],
       }),
       UnoCSS(),
       tsconfigPaths(),
