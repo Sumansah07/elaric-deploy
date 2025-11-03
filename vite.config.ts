@@ -31,9 +31,13 @@ export default defineConfig((config) => {
       sourcemap: false,
       minify: 'esbuild',
       rollupOptions: {
-        external: process.env.VERCEL ? ['electron'] : [],
+        external: ['electron', 'electron-log', 'electron-store', 'electron-updater'],
         output: {
           manualChunks: (id) => {
+            // Skip electron files completely
+            if (id.includes('electron')) {
+              return undefined;
+            }
             if (id.includes('node_modules')) {
               if (id.includes('@splinetool') || id.includes('three')) {
                 return 'spline';
@@ -62,7 +66,8 @@ export default defineConfig((config) => {
           v3_throwAbortReason: true,
           v3_lazyRouteDiscovery: true,
         },
-        ignoredRouteFiles: process.env.VERCEL ? ['**/electron/**'] : [],
+        ignoredRouteFiles: ['**/electron/**'],
+        serverBuildFile: process.env.VERCEL ? 'index.js' : 'server.js',
       }),
       UnoCSS(),
       tsconfigPaths(),

@@ -1,5 +1,10 @@
 electron/
-*.electron.*
 electron-builder.yml
 electron-update.yml
 notarize.cjs
+*.electron.*
+**/*electron*
+**/electron/**
+electron/**/*
+build/electron/
+dist/electron/

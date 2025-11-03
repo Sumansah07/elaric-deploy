@@ -1,13 +1,16 @@
 {
-  "buildCommand": "npm run build",
-  "installCommand": "npm install",
+  "buildCommand": "node --max-old-space-size=8192 node_modules/@remix-run/dev/dist/cli.js vite:build --config vite.config.vercel.ts",
+  "installCommand": "npm install --production=false",
   "framework": "remix",
   "env": {
-    "NODE_OPTIONS": "--max-old-space-size=8192"
+    "NODE_OPTIONS": "--max-old-space-size=8192",
+    "VERCEL": "1"
   },
   "build": {
     "env": {
-      "VERCEL": "1"
+      "VERCEL": "1",
+      "NODE_ENV": "production"
     }
-  }
+  },
+  "outputDirectory": "build/client"
 }
