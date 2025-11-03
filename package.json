@@ -40,7 +40,8 @@
     "electron:build:mac": "rm -rf dist && pnpm electron:build:renderer && pnpm electron:build:deps && electron-builder --mac",
     "electron:build:win": "rm -rf dist && pnpm electron:build:renderer && pnpm electron:build:deps && electron-builder --win",
     "electron:build:linux": "rm -rf dist && pnpm electron:build:renderer && pnpm electron:build:deps && electron-builder --linux",
-    "electron:build:dist": "rm -rf dist && pnpm electron:build:renderer && pnpm electron:build:deps && electron-builder --mwl"
+    "electron:build:dist": "rm -rf dist && pnpm electron:build:renderer && pnpm electron:build:deps && electron-builder --mwl",
+    "health": "curl -f http://localhost:5173/health || echo 'Health check failed'"
   },
   "engines": {
     "node": ">=18.18.0"
@@ -67,7 +68,6 @@
     "@codemirror/lang-python": "^6.1.6",
     "@codemirror/lang-sass": "^6.0.2",
     "@codemirror/lang-vue": "^0.1.3",
-    "@codemirror/lang-wast": "^6.0.2",
     "@codemirror/language": "^6.10.6",
     "@codemirror/search": "^6.5.8",
     "@codemirror/state": "^6.4.1",

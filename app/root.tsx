@@ -1,7 +1,7 @@
 import { useStore } from '@nanostores/react';
 import type { LinksFunction, LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData } from '@remix-run/react';
-import { ClerkApp } from '@clerk/remix';
+import { ClerkApp, ClerkErrorBoundary } from '@clerk/remix';
 import { rootAuthLoader } from '@clerk/remix/ssr.server';
 import { AuthProvider } from './lib/auth/auth-provider';
 import { SupabasePersistenceProvider } from './components/SupabasePersistenceProvider';
@@ -20,6 +20,8 @@ import globalStyles from './styles/index.scss?url';
 import xtermStyles from '@xterm/xterm/css/xterm.css?url';
 
 import 'virtual:uno.css';
+
+export const ErrorBoundary = ClerkErrorBoundary();
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -63,6 +65,15 @@ export const loader = (args: LoaderFunctionArgs) => {
     console.log('- Server CLERK_PUBLISHABLE_KEY:', serverPublishableKey ? '✅ SET' : '❌ MISSING');
     console.log('- Client VITE_CLERK_PUBLISHABLE_KEY:', clientPublishableKey ? '✅ SET' : '❌ MISSING');
     console.log('- CLERK_SECRET_KEY:', secretKey ? '✅ SET' : '❌ MISSING');
+    console.log('- process.env.CLERK_PUBLISHABLE_KEY:', process.env.CLERK_PUBLISHABLE_KEY);
+    console.log('- process.env.VITE_CLERK_PUBLISHABLE_KEY:', process.env.VITE_CLERK_PUBLISHABLE_KEY);
+    console.log('- process.env.CLERK_SECRET_KEY:', process.env.CLERK_SECRET_KEY);
+  } else {
+    // Also log in production for debugging
+    console.log('🌐 Root Loader Environment Check (Production):');
+    console.log('- Server CLERK_PUBLISHABLE_KEY:', process.env.CLERK_PUBLISHABLE_KEY ? '✅ SET' : '❌ MISSING');
+    console.log('- Client VITE_CLERK_PUBLISHABLE_KEY:', process.env.VITE_CLERK_PUBLISHABLE_KEY ? '✅ SET' : '❌ MISSING');
+    console.log('- CLERK_SECRET_KEY:', process.env.CLERK_SECRET_KEY ? '✅ SET' : '❌ MISSING');
   }
 
   // Return rootAuthLoader directly as per Clerk documentation

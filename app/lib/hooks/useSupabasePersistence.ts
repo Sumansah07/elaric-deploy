@@ -13,8 +13,15 @@ export function useSupabasePersistence() {
 
   useEffect(() => {
     async function initializeUser() {
-      if (!isLoaded || !isSignedIn || !user) {
+      if (!isLoaded) {
         setIsInitialized(false);
+        return;
+      }
+
+      // If user is not signed in, we don't need to initialize Supabase
+      if (!isSignedIn || !user) {
+        setIsInitialized(false);
+        setError(null);
         return;
       }
 
@@ -43,7 +50,8 @@ export function useSupabasePersistence() {
         console.log('Supabase persistence initialized for user:', user.id);
       } catch (err) {
         console.error('Failed to initialize Supabase persistence:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error during initialization';
+        setError(errorMessage);
         setIsInitialized(false);
       }
     }

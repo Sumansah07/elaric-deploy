@@ -11,17 +11,29 @@ dotenv.config({ path: '.env.local' });
 dotenv.config({ path: '.env' });
 dotenv.config();
 
+// Log environment variables for debugging
+console.log('🔍 Vite Config Environment Check:');
+console.log('- process.env.CLERK_PUBLISHABLE_KEY:', process.env.CLERK_PUBLISHABLE_KEY ? '✅ SET' : '❌ MISSING');
+console.log('- process.env.VITE_CLERK_PUBLISHABLE_KEY:', process.env.VITE_CLERK_PUBLISHABLE_KEY ? '✅ SET' : '❌ MISSING');
+console.log('- process.env.CLERK_SECRET_KEY:', process.env.CLERK_SECRET_KEY ? '✅ SET' : '❌ MISSING');
+console.log('- process.env.VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL ? '✅ SET' : '❌ MISSING');
+console.log('- process.env.VITE_SUPABASE_ANON_KEY:', process.env.VITE_SUPABASE_ANON_KEY ? '✅ SET' : '❌ MISSING');
+
 export default defineConfig((config) => {
   return {
+    define: {
+      // Make environment variables available in client-side code
+      'import.meta.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(process.env.VITE_CLERK_PUBLISHABLE_KEY),
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY),
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+    },
     resolve: {
       conditions: ['module', 'browser', config.mode === 'production' ? 'production' : 'development'],
       extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
       alias: {
         '~': '/app',
       },
-    },
-    define: {
-      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
     },
     build: {
       target: 'esnext',

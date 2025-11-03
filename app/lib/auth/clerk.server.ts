@@ -16,19 +16,48 @@ const clerkSecretKey = process.env.CLERK_SECRET_KEY;
 console.log('🔐 Clerk Server Environment Check:');
 console.log('- CLERK_PUBLISHABLE_KEY:', clerkPublishableKey ? '✅ SET' : '❌ MISSING');
 console.log('- CLERK_SECRET_KEY:', clerkSecretKey ? '✅ SET' : '❌ MISSING');
+console.log('- process.env.CLERK_PUBLISHABLE_KEY:', process.env.CLERK_PUBLISHABLE_KEY);
+console.log('- process.env.CLERK_SECRET_KEY:', process.env.CLERK_SECRET_KEY);
+
+// Validate environment variables
+if (!clerkPublishableKey) {
+  console.error('❌ Missing CLERK_PUBLISHABLE_KEY environment variable');
+}
+
+if (!clerkSecretKey) {
+  console.error('❌ Missing CLERK_SECRET_KEY environment variable');
+}
 
 if (!clerkPublishableKey || !clerkSecretKey) {
   console.error('❌ Missing Clerk environment variables. Authentication will not work.');
   console.error('Make sure you have both CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in your .env file');
 }
 
+let clerkClient: ReturnType<typeof createClerkClient> | null = null;
+
+try {
+  if (clerkPublishableKey && clerkSecretKey) {
+    console.log('🔄 Initializing Clerk client...');
+    clerkClient = createClerkClient({
+      secretKey: clerkSecretKey,
+      publishableKey: clerkPublishableKey,
+    });
+    console.log('✅ Clerk client initialized');
+  } else {
+    console.warn('⚠️ Clerk credentials missing - authentication will not work');
+  }
+} catch (error) {
+  console.error('❌ Failed to initialize Clerk client:', error);
+  console.error('Error details:', {
+    clerkPublishableKey: clerkPublishableKey ? `${clerkPublishableKey.substring(0, 10)}...` : null,
+    clerkSecretKey: clerkSecretKey ? `${clerkSecretKey.substring(0, 10)}...` : null,
+  });
+}
+
 /**
  * Initialize Clerk client
  */
-export const clerk = createClerkClient({
-  secretKey: clerkSecretKey!,
-  publishableKey: clerkPublishableKey!,
-});
+export const clerk = clerkClient;
 
 /**
  * Get current user session from request

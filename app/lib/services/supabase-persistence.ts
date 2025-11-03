@@ -12,6 +12,23 @@ const supabaseUrl = typeof window !== 'undefined' ? import.meta.env.VITE_SUPABAS
 const supabaseAnonKey =
   typeof window !== 'undefined' ? import.meta.env.VITE_SUPABASE_ANON_KEY : process.env.VITE_SUPABASE_ANON_KEY;
 
+// Add debugging information
+console.log('🔍 Supabase Environment Check:');
+console.log('- typeof window:', typeof window);
+console.log('- import.meta.env.VITE_SUPABASE_URL:', typeof window !== 'undefined' ? import.meta.env.VITE_SUPABASE_URL : 'N/A (server)');
+console.log('- process.env.VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL);
+console.log('- Using supabaseUrl:', supabaseUrl);
+console.log('- Using supabaseAnonKey:', supabaseAnonKey ? '✅ SET' : '❌ MISSING');
+
+// Validate environment variables
+if (!supabaseUrl) {
+  console.warn('⚠️ VITE_SUPABASE_URL is not set. Supabase features will be disabled.');
+}
+
+if (!supabaseAnonKey) {
+  console.warn('⚠️ VITE_SUPABASE_ANON_KEY is not set. Supabase features will be disabled.');
+}
+
 export interface UserContext {
   userId: string; // Supabase user UUID
   clerkUserId: string; // Clerk user ID
@@ -70,11 +87,23 @@ class SupabasePersistenceService {
 
   constructor() {
     // Initialize Supabase client for both server and client
-    if (supabaseUrl && supabaseAnonKey) {
-      this.supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
-      console.log('✅ Supabase client initialized', typeof window === 'undefined' ? '(server)' : '(client)');
-    } else {
-      console.warn('⚠️ Supabase credentials missing');
+    try {
+      // Check if we have the required environment variables
+      if (supabaseUrl && supabaseAnonKey) {
+        console.log('🔄 Initializing Supabase client...');
+        this.supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+        console.log('✅ Supabase client initialized', typeof window === 'undefined' ? '(server)' : '(client)');
+      } else {
+        console.warn('⚠️ Supabase credentials missing - some features will be unavailable');
+        console.log('Supabase URL present:', !!supabaseUrl);
+        console.log('Supabase Anon Key present:', !!supabaseAnonKey);
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize Supabase client:', error);
+      console.error('Error details:', {
+        supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : null,
+        supabaseAnonKey: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 10)}...` : null,
+      });
     }
 
     // Listen for online/offline events (browser only)
@@ -98,50 +127,55 @@ class SupabasePersistenceService {
    * Get or create user in database
    */
   async ensureUser(clerkUserId: string, email: string, fullName?: string): Promise<string> {
-    if (!this.supabase) throw new Error('Supabase not initialized');
+    if (!this.supabase) throw new Error('Supabase not initialized - please check your environment variables');
 
     console.log(`👤 Ensuring user exists for Clerk ID: ${clerkUserId}`);
 
-    // First, try to get existing user
-    const { data: existingUser, error: fetchError } = await this.supabase
-      .from('users')
-      .select('id')
-      .eq('clerk_user_id', clerkUserId)
-      .single();
-
-    if (existingUser) {
-      console.log(`✅ Found existing user with Supabase UUID: ${existingUser.id}`);
-
-      // Update last login
-      await this.supabase
+    try {
+      // First, try to get existing user
+      const { data: existingUser, error: fetchError } = await this.supabase
         .from('users')
-        .update({ last_login_at: new Date().toISOString() })
-        .eq('clerk_user_id', clerkUserId);
+        .select('id')
+        .eq('clerk_user_id', clerkUserId)
+        .single();
 
-      return existingUser.id;
-    }
+      if (existingUser) {
+        console.log(`✅ Found existing user with Supabase UUID: ${existingUser.id}`);
 
-    console.log(`➕ Creating new user for Clerk ID: ${clerkUserId}`);
+        // Update last login
+        await this.supabase
+          .from('users')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('clerk_user_id', clerkUserId);
 
-    // Create new user (RLS allows INSERT for all)
-    const { data, error } = await this.supabase
-      .from('users')
-      .insert({
-        clerk_user_id: clerkUserId,
-        email,
-        full_name: fullName,
-        last_login_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+        return existingUser.id;
+      }
 
-    if (error) {
-      console.error('❌ Failed to create user:', error);
+      console.log(`➕ Creating new user for Clerk ID: ${clerkUserId}`);
+
+      // Create new user (RLS allows INSERT for all)
+      const { data, error } = await this.supabase
+        .from('users')
+        .insert({
+          clerk_user_id: clerkUserId,
+          email,
+          full_name: fullName,
+          last_login_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('❌ Failed to create user:', error);
+        throw error;
+      }
+
+      console.log(`✅ Created new user with Supabase UUID: ${data.id}`);
+      return data.id;
+    } catch (error) {
+      console.error('❌ Error in ensureUser:', error);
       throw error;
     }
-
-    console.log(`✅ Created new user with Supabase UUID: ${data.id}`);
-    return data.id;
   }
 
   // ============================================
@@ -153,28 +187,33 @@ class SupabasePersistenceService {
       return this.queueOperation('saveChatMessage', message);
     }
 
-    // Use message.id as unique identifier to prevent duplicates
-    const messageId = message.id || `${message.projectId}_${Date.now()}`;
+    try {
+      // Use message.id as unique identifier to prevent duplicates
+      const messageId = message.id || `${message.projectId}_${Date.now()}`;
 
-    const { error } = await this.supabase.from('chat_history').upsert(
-      {
-        id: messageId,
-        project_id: message.projectId,
-        user_id: this.userContext.userId,
-        role: message.role,
-        content: message.content,
-        model_used: message.modelUsed,
-        tokens_used: message.tokensUsed,
-        response_time_ms: message.responseTimeMs,
-        generated_screens: message.generatedScreens || [],
-      },
-      {
-        onConflict: 'id', // Don't create duplicates
-      },
-    );
+      const { error } = await this.supabase.from('chat_history').upsert(
+        {
+          id: messageId,
+          project_id: message.projectId,
+          user_id: this.userContext.userId,
+          role: message.role,
+          content: message.content,
+          model_used: message.modelUsed,
+          tokens_used: message.tokensUsed,
+          response_time_ms: message.responseTimeMs,
+          generated_screens: message.generatedScreens || [],
+        },
+        {
+          onConflict: 'id', // Don't create duplicates
+        },
+      );
 
-    if (error) {
-      console.error('Failed to save chat message:', error);
+      if (error) {
+        console.error('Failed to save chat message:', error);
+        this.queueOperation('saveChatMessage', message);
+      }
+    } catch (error) {
+      console.error('Error in saveChatMessage:', error);
       this.queueOperation('saveChatMessage', message);
     }
   }
@@ -182,35 +221,44 @@ class SupabasePersistenceService {
   async getChatHistory(projectId: string): Promise<Message[]> {
     if (!this.supabase || !this.userContext) return [];
 
-    const { data, error } = await this.supabase
-      .from('chat_history')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('user_id', this.userContext.userId)
-      .order('created_at', { ascending: true });
+    try {
+      const { data, error } = await this.supabase
+        .from('chat_history')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('user_id', this.userContext.userId)
+        .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Failed to get chat history:', error);
+      if (error) {
+        console.error('Failed to get chat history:', error);
+        return [];
+      }
+
+      return data.map((msg) => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content,
+      }));
+    } catch (error) {
+      console.error('Error in getChatHistory:', error);
       return [];
     }
-
-    return data.map((msg) => ({
-      id: msg.id,
-      role: msg.role as 'user' | 'assistant' | 'system',
-      content: msg.content,
-    }));
   }
 
   async deleteChatHistory(projectId: string): Promise<void> {
     if (!this.supabase || !this.userContext) return;
 
-    const { error } = await this.supabase
-      .from('chat_history')
-      .delete()
-      .eq('project_id', projectId)
-      .eq('user_id', this.userContext.userId);
+    try {
+      const { error } = await this.supabase
+        .from('chat_history')
+        .delete()
+        .eq('project_id', projectId)
+        .eq('user_id', this.userContext.userId);
 
-    if (error) console.error('Failed to delete chat history:', error);
+      if (error) console.error('Failed to delete chat history:', error);
+    } catch (error) {
+      console.error('Error in deleteChatHistory:', error);
+    }
   }
 
   // ============================================
@@ -220,19 +268,24 @@ class SupabasePersistenceService {
   async createProject(name: string, description?: string): Promise<string> {
     if (!this.supabase || !this.userContext) throw new Error('Not authenticated');
 
-    const { data, error } = await this.supabase
-      .from('projects')
-      .insert({
-        user_id: this.userContext.userId,
-        name,
-        description,
-        status: 'active',
-      })
-      .select('id')
-      .single();
+    try {
+      const { data, error } = await this.supabase
+        .from('projects')
+        .insert({
+          user_id: this.userContext.userId,
+          name,
+          description,
+          status: 'active',
+        })
+        .select('id')
+        .single();
 
-    if (error) throw error;
-    return data.id;
+      if (error) throw error;
+      return data.id;
+    } catch (error) {
+      console.error('Error in createProject:', error);
+      throw error;
+    }
   }
 
   async getProjects(): Promise<any[]> {
@@ -241,47 +294,60 @@ class SupabasePersistenceService {
       return [];
     }
 
-    console.log(`🔍 Querying projects for user_id: ${this.userContext.userId}`);
+    try {
+      console.log(`🔍 Querying projects for user_id: ${this.userContext.userId}`);
 
-    const { data, error } = await this.supabase
-      .from('projects')
-      .select('*')
-      .eq('user_id', this.userContext.userId)
-      .eq('status', 'active')
-      .order('updated_at', { ascending: false })
-      .limit(50);
+      const { data, error } = await this.supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', this.userContext.userId)
+        .eq('status', 'active')
+        .order('updated_at', { ascending: false })
+        .limit(50);
 
-    if (error) {
-      console.error('❌ Failed to get projects:', error);
+      if (error) {
+        console.error('❌ Failed to get projects:', error);
+        return [];
+      }
+
+      console.log(`✅ Found ${data?.length || 0} project(s) for user`);
+      return data || [];
+    } catch (error) {
+      console.error('Error in getProjects:', error);
       return [];
     }
-
-    console.log(`✅ Found ${data?.length || 0} project(s) for user`);
-    return data || [];
   }
 
   async updateProject(projectId: string, updates: any): Promise<void> {
     if (!this.supabase || !this.userContext) return;
 
-    const { error } = await this.supabase
-      .from('projects')
-      .update(updates)
-      .eq('id', projectId)
-      .eq('user_id', this.userContext.userId);
+    try {
+      const { error } = await this.supabase
+        .from('projects')
+        .update(updates)
+        .eq('id', projectId)
+        .eq('user_id', this.userContext.userId);
 
-    if (error) console.error('Failed to update project:', error);
+      if (error) console.error('Failed to update project:', error);
+    } catch (error) {
+      console.error('Error in updateProject:', error);
+    }
   }
 
   async deleteProject(projectId: string): Promise<void> {
     if (!this.supabase || !this.userContext) return;
 
-    const { error } = await this.supabase
-      .from('projects')
-      .update({ status: 'deleted' })
-      .eq('id', projectId)
-      .eq('user_id', this.userContext.userId);
+    try {
+      const { error } = await this.supabase
+        .from('projects')
+        .update({ status: 'deleted' })
+        .eq('id', projectId)
+        .eq('user_id', this.userContext.userId);
 
-    if (error) console.error('Failed to delete project:', error);
+      if (error) console.error('Failed to delete project:', error);
+    } catch (error) {
+      console.error('Error in deleteProject:', error);
+    }
   }
 
   // ============================================
@@ -293,22 +359,27 @@ class SupabasePersistenceService {
       return this.queueOperation('saveDesignFile', file);
     }
 
-    const { error } = await this.supabase.from('design_files').upsert(
-      {
-        project_id: file.projectId,
-        user_id: this.userContext.userId,
-        file_path: file.filePath,
-        file_type: file.fileType,
-        content: file.content,
-        file_size: file.content.length,
-      },
-      {
-        onConflict: 'project_id,file_path',
-      },
-    );
+    try {
+      const { error } = await this.supabase.from('design_files').upsert(
+        {
+          project_id: file.projectId,
+          user_id: this.userContext.userId,
+          file_path: file.filePath,
+          file_type: file.fileType,
+          content: file.content,
+          file_size: file.content.length,
+        },
+        {
+          onConflict: 'project_id,file_path',
+        },
+      );
 
-    if (error) {
-      console.error('Failed to save design file:', error);
+      if (error) {
+        console.error('Failed to save design file:', error);
+        this.queueOperation('saveDesignFile', file);
+      }
+    } catch (error) {
+      console.error('Error in saveDesignFile:', error);
       this.queueOperation('saveDesignFile', file);
     }
   }
@@ -316,39 +387,48 @@ class SupabasePersistenceService {
   async getDesignFiles(projectId: string): Promise<DesignFile[]> {
     if (!this.supabase || !this.userContext) return [];
 
-    const { data, error } = await this.supabase
-      .from('design_files')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('user_id', this.userContext.userId);
+    try {
+      const { data, error } = await this.supabase
+        .from('design_files')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('user_id', this.userContext.userId);
 
-    if (error) {
-      console.error('Failed to get design files:', error);
+      if (error) {
+        console.error('Failed to get design files:', error);
+        return [];
+      }
+
+      return data.map((f) => ({
+        id: f.id,
+        projectId: f.project_id,
+        filePath: f.file_path,
+        fileType: f.file_type as any,
+        content: f.content || '',
+        fileSize: f.file_size || 0,
+        lastModified: f.last_modified,
+      }));
+    } catch (error) {
+      console.error('Error in getDesignFiles:', error);
       return [];
     }
-
-    return data.map((f) => ({
-      id: f.id,
-      projectId: f.project_id,
-      filePath: f.file_path,
-      fileType: f.file_type as any,
-      content: f.content || '',
-      fileSize: f.file_size || 0,
-      lastModified: f.last_modified,
-    }));
   }
 
   async deleteDesignFile(projectId: string, filePath: string): Promise<void> {
     if (!this.supabase || !this.userContext) return;
 
-    const { error } = await this.supabase
-      .from('design_files')
-      .delete()
-      .eq('project_id', projectId)
-      .eq('file_path', filePath)
-      .eq('user_id', this.userContext.userId);
+    try {
+      const { error } = await this.supabase
+        .from('design_files')
+        .delete()
+        .eq('project_id', projectId)
+        .eq('file_path', filePath)
+        .eq('user_id', this.userContext.userId);
 
-    if (error) console.error('Failed to delete design file:', error);
+      if (error) console.error('Failed to delete design file:', error);
+    } catch (error) {
+      console.error('Error in deleteDesignFile:', error);
+    }
   }
 
   // ============================================
@@ -360,24 +440,29 @@ class SupabasePersistenceService {
       return this.queueOperation('saveProjectFile', file);
     }
 
-    const { error } = await this.supabase.from('project_files').upsert(
-      {
-        project_id: file.projectId,
-        user_id: this.userContext.userId,
-        file_path: file.filePath,
-        content: file.content,
-        is_binary: file.isBinary || false,
-        mime_type: file.mimeType,
-        file_size: file.fileSize || (file.content ? String(file.content).length : 0),
-        is_deleted: file.isDeleted || false,
-      },
-      {
-        onConflict: 'project_id,file_path',
-      },
-    );
+    try {
+      const { error } = await this.supabase.from('project_files').upsert(
+        {
+          project_id: file.projectId,
+          user_id: this.userContext.userId,
+          file_path: file.filePath,
+          content: file.content,
+          is_binary: file.isBinary || false,
+          mime_type: file.mimeType,
+          file_size: file.fileSize || (file.content ? String(file.content).length : 0),
+          is_deleted: file.isDeleted || false,
+        },
+        {
+          onConflict: 'project_id,file_path',
+        },
+      );
 
-    if (error) {
-      console.error('Failed to save project file:', error);
+      if (error) {
+        console.error('Failed to save project file:', error);
+        this.queueOperation('saveProjectFile', file);
+      }
+    } catch (error) {
+      console.error('Error in saveProjectFile:', error);
       this.queueOperation('saveProjectFile', file);
     }
   }
@@ -385,41 +470,50 @@ class SupabasePersistenceService {
   async getProjectFiles(projectId: string): Promise<ProjectFile[]> {
     if (!this.supabase || !this.userContext) return [];
 
-    const { data, error } = await this.supabase
-      .from('project_files')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('user_id', this.userContext.userId)
-      .eq('is_deleted', false);
+    try {
+      const { data, error } = await this.supabase
+        .from('project_files')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('user_id', this.userContext.userId)
+        .eq('is_deleted', false);
 
-    if (error) {
-      console.error('Failed to get project files:', error);
+      if (error) {
+        console.error('Failed to get project files:', error);
+        return [];
+      }
+
+      return data.map((f) => ({
+        id: f.id,
+        projectId: f.project_id,
+        filePath: f.file_path,
+        content: f.content || '',
+        isBinary: f.is_binary || false,
+        mimeType: f.mime_type || undefined,
+        fileSize: Number(f.file_size) || 0,
+        isDeleted: f.is_deleted || false,
+      }));
+    } catch (error) {
+      console.error('Error in getProjectFiles:', error);
       return [];
     }
-
-    return data.map((f) => ({
-      id: f.id,
-      projectId: f.project_id,
-      filePath: f.file_path,
-      content: f.content || '',
-      isBinary: f.is_binary || false,
-      mimeType: f.mime_type || undefined,
-      fileSize: Number(f.file_size) || 0,
-      isDeleted: f.is_deleted || false,
-    }));
   }
 
   async deleteProjectFile(projectId: string, filePath: string): Promise<void> {
     if (!this.supabase || !this.userContext) return;
 
-    const { error } = await this.supabase
-      .from('project_files')
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-      .eq('project_id', projectId)
-      .eq('file_path', filePath)
-      .eq('user_id', this.userContext.userId);
+    try {
+      const { error } = await this.supabase
+        .from('project_files')
+        .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+        .eq('project_id', projectId)
+        .eq('file_path', filePath)
+        .eq('user_id', this.userContext.userId);
 
-    if (error) console.error('Failed to delete project file:', error);
+      if (error) console.error('Failed to delete project file:', error);
+    } catch (error) {
+      console.error('Error in deleteProjectFile:', error);
+    }
   }
 
   // ============================================
@@ -429,55 +523,64 @@ class SupabasePersistenceService {
   async saveUserSettings(settings: UserSettings): Promise<void> {
     if (!this.supabase || !this.userContext) return;
 
-    const { error } = await this.supabase.from('user_settings').upsert(
-      {
-        user_id: this.userContext.userId,
-        theme: settings.theme,
-        provider_settings: settings.providerSettings || {},
-        auto_enabled_providers: settings.autoEnabledProviders || [],
-        mcp_settings: settings.mcpSettings || {},
-        github_connection: settings.githubConnection,
-        gitlab_connection: settings.gitlabConnection,
-        vercel_connection: settings.vercelConnection,
-        netlify_connection: settings.netlifyConnection,
-        supabase_connection: settings.supabaseConnection,
-        viewed_features: settings.viewedFeatures || [],
-      },
-      {
-        onConflict: 'user_id',
-      },
-    );
+    try {
+      const { error } = await this.supabase.from('user_settings').upsert(
+        {
+          user_id: this.userContext.userId,
+          theme: settings.theme,
+          provider_settings: settings.providerSettings || {},
+          auto_enabled_providers: settings.autoEnabledProviders || [],
+          mcp_settings: settings.mcpSettings || {},
+          github_connection: settings.githubConnection,
+          gitlab_connection: settings.gitlabConnection,
+          vercel_connection: settings.vercelConnection,
+          netlify_connection: settings.netlifyConnection,
+          supabase_connection: settings.supabaseConnection,
+          viewed_features: settings.viewedFeatures || [],
+        },
+        {
+          onConflict: 'user_id',
+        },
+      );
 
-    if (error) console.error('Failed to save user settings:', error);
+      if (error) console.error('Failed to save user settings:', error);
+    } catch (error) {
+      console.error('Error in saveUserSettings:', error);
+    }
   }
 
   async getUserSettings(): Promise<UserSettings | null> {
     if (!this.supabase || !this.userContext) return null;
 
-    const { data, error } = await this.supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', this.userContext.userId)
-      .single();
+    try {
+      const { data, error } = await this.supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', this.userContext.userId)
+        .single();
 
-    if (error) {
-      if (error.code === 'PGRST116') return null; // Not found
-      console.error('Failed to get user settings:', error);
+      if (error) {
+        if (error.code === 'PGRST116') return null; // Not found
+        console.error('Failed to get user settings:', error);
+        return null;
+      }
+
+      return {
+        theme: data.theme as any,
+        providerSettings: data.provider_settings || {},
+        autoEnabledProviders: data.auto_enabled_providers || [],
+        mcpSettings: data.mcp_settings || {},
+        githubConnection: data.github_connection || undefined,
+        gitlabConnection: data.gitlab_connection || undefined,
+        vercelConnection: data.vercel_connection || undefined,
+        netlifyConnection: data.netlify_connection || undefined,
+        supabaseConnection: data.supabase_connection || undefined,
+        viewedFeatures: data.viewed_features || [],
+      };
+    } catch (error) {
+      console.error('Error in getUserSettings:', error);
       return null;
     }
-
-    return {
-      theme: data.theme as any,
-      providerSettings: data.provider_settings || {},
-      autoEnabledProviders: data.auto_enabled_providers || [],
-      mcpSettings: data.mcp_settings || {},
-      githubConnection: data.github_connection || undefined,
-      gitlabConnection: data.gitlab_connection || undefined,
-      vercelConnection: data.vercel_connection || undefined,
-      netlifyConnection: data.netlify_connection || undefined,
-      supabaseConnection: data.supabase_connection || undefined,
-      viewedFeatures: data.viewed_features || [],
-    };
   }
 
   // ============================================
@@ -487,44 +590,57 @@ class SupabasePersistenceService {
   async saveCanvasState(projectId: string, canvasState: any): Promise<void> {
     if (!this.supabase || !this.userContext) return;
 
-    const { error } = await this.supabase
-      .from('projects')
-      .update({ canvas_state: canvasState })
-      .eq('id', projectId)
-      .eq('user_id', this.userContext.userId);
+    try {
+      const { error } = await this.supabase
+        .from('projects')
+        .update({ canvas_state: canvasState })
+        .eq('id', projectId)
+        .eq('user_id', this.userContext.userId);
 
-    if (error) console.error('Failed to save canvas state:', error);
+      if (error) console.error('Failed to save canvas state:', error);
+    } catch (error) {
+      console.error('Error in saveCanvasState:', error);
+    }
   }
 
   async getCanvasState(projectId: string): Promise<any | null> {
     if (!this.supabase || !this.userContext) return null;
 
-    const { data, error } = await this.supabase
-      .from('projects')
-      .select('canvas_state')
-      .eq('id', projectId)
-      .eq('user_id', this.userContext.userId)
-      .single();
+    try {
+      const { data, error } = await this.supabase
+        .from('projects')
+        .select('canvas_state')
+        .eq('id', projectId)
+        .eq('user_id', this.userContext.userId)
+        .single();
 
-    if (error) {
-      console.error('Failed to get canvas state:', error);
+      if (error) {
+        console.error('Failed to get canvas state:', error);
+        return null;
+      }
+
+      return data.canvas_state;
+    } catch (error) {
+      console.error('Error in getCanvasState:', error);
       return null;
     }
-
-    return data.canvas_state;
   }
 
   async createCanvasSnapshot(projectId: string, canvasState: any, name?: string): Promise<void> {
     if (!this.supabase || !this.userContext) return;
 
-    const { error } = await this.supabase.from('canvas_snapshots').insert({
-      project_id: projectId,
-      user_id: this.userContext.userId,
-      canvas_state: canvasState,
-      name: name || `Snapshot ${new Date().toLocaleString()}`,
-    });
+    try {
+      const { error } = await this.supabase.from('canvas_snapshots').insert({
+        project_id: projectId,
+        user_id: this.userContext.userId,
+        canvas_state: canvasState,
+        name: name || `Snapshot ${new Date().toLocaleString()}`,
+      });
 
-    if (error) console.error('Failed to create canvas snapshot:', error);
+      if (error) console.error('Failed to create canvas snapshot:', error);
+    } catch (error) {
+      console.error('Error in createCanvasSnapshot:', error);
+    }
   }
 
   // ============================================
@@ -593,3 +709,9 @@ class SupabasePersistenceService {
 
 // Export singleton instance
 export const supabasePersistence = new SupabasePersistenceService();
+
+
+
+
+
+
