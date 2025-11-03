@@ -2,16 +2,6 @@
   "buildCommand": "npm run build",
   "installCommand": "npm ci --production=false",
   "framework": "remix",
-  "functions": {
-    "app/routes/api/**/*.ts": {
-      "maxDuration": 30
-    }
-  },
-  "env": {
-    "NODE_OPTIONS": "--max-old-space-size=8192 --no-warnings",
-    "VERCEL": "1",
-    "NODE_ENV": "production"
-  },
   "build": {
     "env": {
       "VERCEL": "1",
