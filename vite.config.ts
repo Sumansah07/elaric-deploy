@@ -59,6 +59,7 @@ export default defineConfig((config) => {
     },
     plugins: [
       config.mode !== 'test' && !process.env.VERCEL && remixCloudflareDevProxy(),
+      electronExcludePlugin(),
       remixVitePlugin({
         future: {
           v3_fetcherPersist: true,
@@ -66,7 +67,7 @@ export default defineConfig((config) => {
           v3_throwAbortReason: true,
           v3_lazyRouteDiscovery: true,
         },
-        ignoredRouteFiles: ['**/electron/**'],
+        ignoredRouteFiles: ['**/electron/**', '**/*.electron.*'],
         serverBuildFile: process.env.VERCEL ? 'index.js' : 'server.js',
       }),
       UnoCSS(),
@@ -102,6 +103,25 @@ export default defineConfig((config) => {
     },
   };
 });
+
+function electronExcludePlugin() {
+  return {
+    name: 'electron-exclude',
+    resolveId(id: string) {
+      // Completely exclude electron-related imports
+      if (id.includes('electron') || id.includes('package.json')) {
+        return { id: 'virtual:electron-stub', external: true };
+      }
+      return null;
+    },
+    load(id: string) {
+      if (id === 'virtual:electron-stub') {
+        return 'export default {};';
+      }
+      return null;
+    },
+  };
+}
 
 function chrome129IssuePlugin() {
   return {
