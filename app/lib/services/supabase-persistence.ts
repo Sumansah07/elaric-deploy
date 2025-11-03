@@ -12,21 +12,25 @@ const supabaseUrl = typeof window !== 'undefined' ? import.meta.env.VITE_SUPABAS
 const supabaseAnonKey =
   typeof window !== 'undefined' ? import.meta.env.VITE_SUPABASE_ANON_KEY : process.env.VITE_SUPABASE_ANON_KEY;
 
-// Add debugging information
-console.log('🔍 Supabase Environment Check:');
-console.log('- typeof window:', typeof window);
-console.log('- import.meta.env.VITE_SUPABASE_URL:', typeof window !== 'undefined' ? import.meta.env.VITE_SUPABASE_URL : 'N/A (server)');
-console.log('- process.env.VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL);
-console.log('- Using supabaseUrl:', supabaseUrl);
-console.log('- Using supabaseAnonKey:', supabaseAnonKey ? '✅ SET' : '❌ MISSING');
-
-// Validate environment variables
-if (!supabaseUrl) {
-  console.warn('⚠️ VITE_SUPABASE_URL is not set. Supabase features will be disabled.');
+// Add debugging information only in development or when not building
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🔍 Supabase Environment Check:');
+  console.log('- typeof window:', typeof window);
+  console.log('- import.meta.env.VITE_SUPABASE_URL:', typeof window !== 'undefined' ? import.meta.env.VITE_SUPABASE_URL : 'N/A (server)');
+  console.log('- process.env.VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL);
+  console.log('- Using supabaseUrl:', supabaseUrl);
+  console.log('- Using supabaseAnonKey:', supabaseAnonKey ? '✅ SET' : '❌ MISSING');
 }
 
-if (!supabaseAnonKey) {
-  console.warn('⚠️ VITE_SUPABASE_ANON_KEY is not set. Supabase features will be disabled.');
+// Validate environment variables
+if (process.env.NODE_ENV !== 'production') {
+  if (!supabaseUrl) {
+    console.warn('⚠️ VITE_SUPABASE_URL is not set. Supabase features will be disabled.');
+  }
+
+  if (!supabaseAnonKey) {
+    console.warn('⚠️ VITE_SUPABASE_ANON_KEY is not set. Supabase features will be disabled.');
+  }
 }
 
 export interface UserContext {
@@ -709,6 +713,8 @@ class SupabasePersistenceService {
 
 // Export singleton instance
 export const supabasePersistence = new SupabasePersistenceService();
+
+
 
 
 

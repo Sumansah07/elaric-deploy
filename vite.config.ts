@@ -18,8 +18,17 @@ console.log('- process.env.VITE_CLERK_PUBLISHABLE_KEY:', process.env.VITE_CLERK_
 console.log('- process.env.CLERK_SECRET_KEY:', process.env.CLERK_SECRET_KEY ? '✅ SET' : '❌ MISSING');
 console.log('- process.env.VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL ? '✅ SET' : '❌ MISSING');
 console.log('- process.env.VITE_SUPABASE_ANON_KEY:', process.env.VITE_SUPABASE_ANON_KEY ? '✅ SET' : '❌ MISSING');
+console.log('- process.env.VERCEL:', process.env.VERCEL ? '✅ SET' : '❌ MISSING');
 
 export default defineConfig((config) => {
+  // Check if we're running in Vercel environment
+  const isVercel = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  
+  console.log('🔧 Vercel Environment Check:');
+  console.log('- isVercel:', isVercel);
+  console.log('- config.mode:', config.mode);
+  console.log('- process.env.NODE_ENV:', process.env.NODE_ENV);
+
   return {
     define: {
       // Make environment variables available in client-side code
@@ -27,6 +36,7 @@ export default defineConfig((config) => {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY),
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+      'process.env.VERCEL': JSON.stringify(process.env.VERCEL || null),
     },
     resolve: {
       conditions: ['module', 'browser', config.mode === 'production' ? 'production' : 'development'],
@@ -70,7 +80,8 @@ export default defineConfig((config) => {
       },
     },
     plugins: [
-      config.mode !== 'test' && !process.env.VERCEL && remixCloudflareDevProxy(),
+      // Only use the Cloudflare dev proxy when not in Vercel and not in test mode
+      config.mode !== 'test' && !isVercel && remixCloudflareDevProxy(),
       electronExcludePlugin(),
       remixVitePlugin({
         future: {
@@ -80,7 +91,7 @@ export default defineConfig((config) => {
           v3_lazyRouteDiscovery: true,
         },
         ignoredRouteFiles: ['**/electron/**', '**/*.electron.*'],
-        serverBuildFile: process.env.VERCEL ? 'index.js' : 'server.js',
+        serverBuildFile: isVercel ? 'index.js' : 'server.js',
       }),
       UnoCSS(),
       tsconfigPaths(),

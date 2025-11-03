@@ -12,46 +12,58 @@ import { db } from '~/lib/database/supabase.server';
 const clerkPublishableKey = process.env.CLERK_PUBLISHABLE_KEY;
 const clerkSecretKey = process.env.CLERK_SECRET_KEY;
 
-// Debug logging for environment variables
-console.log('🔐 Clerk Server Environment Check:');
-console.log('- CLERK_PUBLISHABLE_KEY:', clerkPublishableKey ? '✅ SET' : '❌ MISSING');
-console.log('- CLERK_SECRET_KEY:', clerkSecretKey ? '✅ SET' : '❌ MISSING');
-console.log('- process.env.CLERK_PUBLISHABLE_KEY:', process.env.CLERK_PUBLISHABLE_KEY);
-console.log('- process.env.CLERK_SECRET_KEY:', process.env.CLERK_SECRET_KEY);
+// Debug logging for environment variables only in development
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🔐 Clerk Server Environment Check:');
+  console.log('- CLERK_PUBLISHABLE_KEY:', clerkPublishableKey ? '✅ SET' : '❌ MISSING');
+  console.log('- CLERK_SECRET_KEY:', clerkSecretKey ? '✅ SET' : '❌ MISSING');
+  console.log('- process.env.CLERK_PUBLISHABLE_KEY:', process.env.CLERK_PUBLISHABLE_KEY);
+  console.log('- process.env.CLERK_SECRET_KEY:', process.env.CLERK_SECRET_KEY);
+}
 
 // Validate environment variables
-if (!clerkPublishableKey) {
-  console.error('❌ Missing CLERK_PUBLISHABLE_KEY environment variable');
-}
+if (process.env.NODE_ENV !== 'production') {
+  if (!clerkPublishableKey) {
+    console.error('❌ Missing CLERK_PUBLISHABLE_KEY environment variable');
+  }
 
-if (!clerkSecretKey) {
-  console.error('❌ Missing CLERK_SECRET_KEY environment variable');
-}
+  if (!clerkSecretKey) {
+    console.error('❌ Missing CLERK_SECRET_KEY environment variable');
+  }
 
-if (!clerkPublishableKey || !clerkSecretKey) {
-  console.error('❌ Missing Clerk environment variables. Authentication will not work.');
-  console.error('Make sure you have both CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in your .env file');
+  if (!clerkPublishableKey || !clerkSecretKey) {
+    console.error('❌ Missing Clerk environment variables. Authentication will not work.');
+    console.error('Make sure you have both CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in your .env file');
+  }
 }
 
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
 
 try {
   if (clerkPublishableKey && clerkSecretKey) {
-    console.log('🔄 Initializing Clerk client...');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔄 Initializing Clerk client...');
+    }
     clerkClient = createClerkClient({
       secretKey: clerkSecretKey,
       publishableKey: clerkPublishableKey,
     });
-    console.log('✅ Clerk client initialized');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ Clerk client initialized');
+    }
   } else {
-    console.warn('⚠️ Clerk credentials missing - authentication will not work');
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('⚠️ Clerk credentials missing - authentication will not work');
+    }
   }
 } catch (error) {
-  console.error('❌ Failed to initialize Clerk client:', error);
-  console.error('Error details:', {
-    clerkPublishableKey: clerkPublishableKey ? `${clerkPublishableKey.substring(0, 10)}...` : null,
-    clerkSecretKey: clerkSecretKey ? `${clerkSecretKey.substring(0, 10)}...` : null,
-  });
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('❌ Failed to initialize Clerk client:', error);
+    console.error('Error details:', {
+      clerkPublishableKey: clerkPublishableKey ? `${clerkPublishableKey.substring(0, 10)}...` : null,
+      clerkSecretKey: clerkSecretKey ? `${clerkSecretKey.substring(0, 10)}...` : null,
+    });
+  }
 }
 
 /**
