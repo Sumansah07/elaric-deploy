@@ -1,3 +1,8 @@
+/**
+ * Supabase Persistence Provider
+ * Initializes user context and triggers migration on first login
+ */
+
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/remix';
 import { useSupabasePersistence } from '~/lib/hooks/useSupabasePersistence';
@@ -24,67 +29,46 @@ export function SupabasePersistenceProvider({ children }: { children: React.Reac
     async function handleMigration() {
       if (!isLoaded || !isSignedIn || !isInitialized) return;
 
+      // Check if migration is needed
+      if (isMigrationCompleted()) {
+        setMigrationStatus('completed');
+        console.log('🔄 Loading user data...');
+        
+        // Load user settings
+        await settingsStore.loadSettings();
+        console.log('✅ Settings loaded');
+        
+        // Load canvas/designs
+        const canvasLoaded = await canvasLoader.loadMostRecentCanvas();
+        console.log(canvasLoaded ? '✅ Canvas loaded' : 'ℹ️ No canvas to load');
+        
+        return;
+      }
+
+      // Run migration
+      setMigrationStatus('migrating');
+      console.log('Starting local to Supabase migration...');
+
       try {
-        // Check if migration is needed
-        if (isMigrationCompleted()) {
+        const result = await migrateLocalDataToSupabase();
+        setMigrationResult(result);
+        
+        if (result.success) {
           setMigrationStatus('completed');
-          console.log('🔄 Loading user data...');
+          console.log('Migration completed successfully:', result);
           
-          try {
-            // Load user settings
-            await settingsStore.loadSettings();
-            console.log('✅ Settings loaded');
-          } catch (settingsError) {
-            console.error('⚠️ Failed to load settings:', settingsError);
-          }
+          // Load settings after migration
+          await settingsStore.loadSettings();
           
-          try {
-            // Load canvas/designs
-            const canvasLoaded = await canvasLoader.loadMostRecentCanvas();
-            console.log(canvasLoaded ? '✅ Canvas loaded' : 'ℹ️ No canvas to load');
-          } catch (canvasError) {
-            console.error('⚠️ Failed to load canvas:', canvasError);
-          }
-          
-          return;
-        }
-
-        // Run migration
-        setMigrationStatus('migrating');
-        console.log('Starting local to Supabase migration...');
-
-        try {
-          const result = await migrateLocalDataToSupabase();
-          setMigrationResult(result);
-          
-          if (result.success) {
-            setMigrationStatus('completed');
-            console.log('Migration completed successfully:', result);
-            
-            // Load settings after migration
-            try {
-              await settingsStore.loadSettings();
-            } catch (settingsError) {
-              console.error('⚠️ Failed to load settings after migration:', settingsError);
-            }
-            
-            // Load canvas/designs for user
-            try {
-              await canvasLoader.loadMostRecentCanvas();
-            } catch (canvasError) {
-              console.error('⚠️ Failed to load canvas after migration:', canvasError);
-            }
-          } else {
-            setMigrationStatus('error');
-            console.error('Migration failed:', result.errors);
-          }
-        } catch (migrationError) {
+          // Load canvas/designs for user
+          await canvasLoader.loadMostRecentCanvas();
+        } else {
           setMigrationStatus('error');
-          console.error('Migration error:', migrationError);
+          console.error('Migration failed:', result.errors);
         }
       } catch (error) {
-        console.error('Error in handleMigration:', error);
         setMigrationStatus('error');
+        console.error('Migration error:', error);
       }
     }
 
@@ -92,7 +76,7 @@ export function SupabasePersistenceProvider({ children }: { children: React.Reac
   }, [isLoaded, isSignedIn, isInitialized]);
 
   // Show loading state while initializing
-  if (!isLoaded || (isSignedIn && !isInitialized && !error)) {
+  if (!isLoaded || (isSignedIn && !isInitialized)) {
     return (
       <div className="flex items-center justify-center h-screen bg-bolt-elements-background-depth-1">
         <div className="text-center">
@@ -153,7 +137,6 @@ export function SupabasePersistenceProvider({ children }: { children: React.Reac
 
   // Show error if persistence initialization failed
   if (error) {
-    console.error('Supabase Persistence Error:', error);
     return (
       <div className="flex items-center justify-center h-screen bg-bolt-elements-background-depth-1">
         <div className="text-center max-w-md p-6">
@@ -162,14 +145,6 @@ export function SupabasePersistenceProvider({ children }: { children: React.Reac
             Initialization Error
           </h2>
           <p className="text-bolt-elements-textSecondary mb-4">{error}</p>
-          <div className="text-left text-sm text-bolt-elements-textSecondary mb-4 bg-bolt-elements-background-depth-2 p-3 rounded">
-            <p className="font-semibold mb-2">Troubleshooting:</p>
-            <ul className="list-disc list-inside">
-              <li>Check that all required environment variables are set</li>
-              <li>Verify Supabase credentials are correct</li>
-              <li>Ensure Clerk authentication is properly configured</li>
-            </ul>
-          </div>
           <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text rounded hover:bg-bolt-elements-button-primary-backgroundHover"
